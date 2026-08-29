@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c1e24">
+<title>Pokédex</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="shell__header">
+    <div class="lens">
+      <div class="lens__ring"></div>
+      <div class="lens__ring lens__ring--sm"></div>
+    </div>
+    <div class="dots">
+      <span class="dot dot--red"></span>
+      <span class="dot dot--yellow"></span>
+      <span class="dot dot--green"></span>
+    </div>
+    <h1 class="brand">POKÉDEX</h1>
+  </header>
+
+  <div class="toolbar">
+    <div class="search">
+      <input id="searchInput" type="text" inputmode="search" placeholder="Nom ou numéro… ex. dracaufeu, 006" autocomplete="off">
+      <span id="searchCount" class="search__count"></span>
+    </div>
+    <div class="filters" id="typeFilters"></div>
+  </div>
+
+  <main class="layout">
+
+    <section class="list" id="list" aria-label="Liste des Pokémon">
+      <div class="list__grid" id="listGrid"></div>
+      <button id="loadMore" class="loadmore">Charger la suite</button>
+    </section>
+
+    <section class="screen" id="screen" aria-live="polite">
+      <div class="screen__empty" id="screenEmpty">
+        <div class="screen__empty-icon">?</div>
+        <p>Choisis un Pokémon dans la liste pour voir sa fiche.</p>
+      </div>
+
+      <div class="screen__content" id="screenContent" hidden>
+
+        <div class="screen__top">
+          <div class="screen__id" id="pkId">#000</div>
+          <button id="shinyToggle" class="shiny-switch" aria-pressed="false" title="Basculer forme chromatique">
+            <span class="shiny-switch__label">SHINY</span>
+            <span class="shiny-switch__track"><span class="shiny-switch__thumb"></span></span>
+          </button>
+        </div>
+
+        <div class="screen__portrait">
+          <img id="pkSprite" alt="" width="200" height="200">
+          <div class="screen__nav">
+            <button id="prevPk" aria-label="Pokémon précédent">‹</button>
+            <button id="nextPk" aria-label="Pokémon suivant">›</button>
+          </div>
+        </div>
+
+        <h2 id="pkName" class="screen__name"></h2>
+        <div id="pkTypes" class="type-badges"></div>
+
+        <nav class="tabs" id="tabs">
+          <button class="tab is-active" data-tab="stats">Stats</button>
+          <button class="tab" data-tab="evolution">Évolution</button>
+          <button class="tab" data-tab="moves">Attaques</button>
+          <button class="tab" data-tab="about">Infos</button>
+        </nav>
+
+        <div class="tab-panel is-active" id="panel-stats">
+          <div id="statsList" class="stats"></div>
+        </div>
+
+        <div class="tab-panel" id="panel-evolution">
+          <div id="evoChain" class="evo-chain"></div>
+        </div>
+
+        <div class="tab-panel" id="panel-moves">
+          <p class="hint">Attaque signature détectée automatiquement (apprise par très peu d'autres Pokémon).</p>
+          <div id="signatureMove" class="signature-move"></div>
+          <div id="movesList" class="moves-list"></div>
+        </div>
+
+        <div class="tab-panel" id="panel-about">
+          <div id="aboutGrid" class="about-grid"></div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="shell__footer">
+    <span>Données : PokéAPI</span>
+    <span id="cacheStatus" class="cache-status"></span>
+  </footer>
+</div>
+
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
