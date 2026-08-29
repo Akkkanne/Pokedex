@@ -226,6 +226,7 @@ button:focus-visible, input:focus-visible {
   mix-blend-mode: multiply;
 }
 
+.screen__empty[hidden] { display: none; }
 .screen__empty {
   height: 62vh;
   display: flex;
