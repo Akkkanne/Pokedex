@@ -24,7 +24,7 @@ let renderedCount = 0;
 let currentIndex = -1;   // index into filteredNames of the selected pokemon
 let currentData = null;
 let showShiny = false;
-let activeTypeFilter = null;
+let activeTypeFilters = new Set();
 const detailCache = new Map();
 const moveCache = new Map();
 
@@ -67,8 +67,9 @@ function buildTypeFilters() {
     chip.textContent = type;
     chip.style.setProperty('--type-color', TYPE_COLORS[type]);
     chip.addEventListener('click', () => {
-      activeTypeFilter = activeTypeFilter === type ? null : type;
-      [...typeFilters.children].forEach(c => c.classList.toggle('is-active', c === chip && activeTypeFilter));
+      if (activeTypeFilters.has(type)) activeTypeFilters.delete(type);
+      else activeTypeFilters.add(type);
+      chip.classList.toggle('is-active', activeTypeFilters.has(type));
       applyFilters();
     });
     typeFilters.appendChild(chip);
@@ -128,10 +129,10 @@ function applyFilters() {
     list = list.filter(p => p.name.includes(q) || String(p.id) === q || String(p.id).padStart(3, '0') === q);
   }
 
-  if (activeTypeFilter) {
-    // type filtering requires knowing each pokemon's type -> use PokeAPI type endpoint (single call, cached)
+  if (activeTypeFilters.size > 0) {
+    // type filtering requires knowing each pokemon's types -> use PokeAPI type endpoint (cached per type)
     filteredNames = null; // will resolve async below
-    filterByType(activeTypeFilter, list).then(res => {
+    filterByTypes([...activeTypeFilters], list).then(res => {
       filteredNames = res;
       renderedCount = 0;
       listGrid.innerHTML = '';
@@ -147,17 +148,21 @@ function applyFilters() {
   renderList(false);
 }
 
-async function filterByType(type, baseList) {
-  const cacheKey = `pkdx_type_${type}`;
-  let names = store.get(cacheKey);
-  if (!names) {
-    const res = await fetch(`${API}/type/${type}`);
-    const data = await res.json();
-    names = data.pokemon.map(p => p.pokemon.name);
-    store.set(cacheKey, names);
-  }
-  const set = new Set(names);
-  return baseList.filter(p => set.has(p.name));
+async function filterByTypes(types, baseList) {
+  // fetch (or read from cache) each type's pokemon name set, then intersect them
+  const sets = await Promise.all(types.map(async (type) => {
+    const cacheKey = `pkdx_type_${type}`;
+    let names = store.get(cacheKey);
+    if (!names) {
+      const res = await fetch(`${API}/type/${type}`);
+      const data = await res.json();
+      names = data.pokemon.map(p => p.pokemon.name);
+      store.set(cacheKey, names);
+    }
+    return new Set(names);
+  }));
+
+  return baseList.filter(p => sets.every(s => s.has(p.name)));
 }
 
 function renderList(append) {
