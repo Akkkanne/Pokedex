@@ -123,6 +123,7 @@ function buildTypeFilters() {
 function bindEvents() {
   searchInput.addEventListener('input', debounce(applyFilters, 120));
   loadMoreBtn.addEventListener('click', () => renderList(true));
+  listGrid.addEventListener('scroll', debounce(maybeAutoLoadMore, 100));
   $('shinyToggle').addEventListener('click', toggleShiny);
   $('prevPk').addEventListener('click', () => stepSelection(-1));
   $('nextPk').addEventListener('click', () => stepSelection(1));
@@ -235,6 +236,16 @@ function renderList(append) {
   slice.forEach(p => listGrid.appendChild(buildCard(p)));
   renderedCount += slice.length;
   loadMoreBtn.hidden = renderedCount >= filteredNames.length;
+  // si la page ne remplit pas encore le cadre visible (donc pas de scroll possible), on charge la suite automatiquement
+  requestAnimationFrame(maybeAutoLoadMore);
+}
+
+/* charge la page suivante automatiquement quand on approche du bas de la liste, sans avoir à cliquer */
+function maybeAutoLoadMore() {
+  if (!filteredNames || renderedCount >= filteredNames.length) return;
+  const nearBottom = listGrid.scrollHeight - listGrid.scrollTop - listGrid.clientHeight < 200;
+  const notScrollableYet = listGrid.scrollHeight <= listGrid.clientHeight;
+  if (nearBottom || notScrollableYet) renderList(true);
 }
 
 function buildCard(p) {
