@@ -25,6 +25,8 @@ let currentIndex = -1;   // index into filteredNames of the selected pokemon
 let currentData = null;
 let showShiny = false;
 let activeTypeFilters = new Set();
+let team = new Set(store.get('pkdx_team_v1') || []);
+let teamOnlyMode = false;
 const detailCache = new Map();
 const moveCache = new Map();
 
@@ -48,6 +50,8 @@ const typeFilters = $('typeFilters');
 const screenEmpty = $('screenEmpty');
 const screenContent = $('screenContent');
 const cacheStatus = $('cacheStatus');
+const teamPanel = $('teamPanel');
+const teamToggle = $('teamToggle');
 
 /* ---------- init ---------- */
 init();
@@ -55,6 +59,7 @@ init();
 async function init() {
   buildTypeFilters();
   bindEvents();
+  $('teamCount').textContent = `${team.size}/6`;
   await loadNameList();
   applyFilters();
 }
@@ -82,6 +87,15 @@ function bindEvents() {
   $('shinyToggle').addEventListener('click', toggleShiny);
   $('prevPk').addEventListener('click', () => stepSelection(-1));
   $('nextPk').addEventListener('click', () => stepSelection(1));
+  $('teamStar').addEventListener('click', () => toggleTeamMember(currentData.name));
+  teamToggle.addEventListener('click', () => {
+    teamOnlyMode = !teamOnlyMode;
+    teamToggle.setAttribute('aria-pressed', String(teamOnlyMode));
+    teamToggle.classList.toggle('is-active', teamOnlyMode);
+    teamPanel.hidden = !teamOnlyMode;
+    if (teamOnlyMode) renderTeamPanel();
+    applyFilters();
+  });
   $('tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.tab');
     if (!btn) return;
@@ -127,6 +141,10 @@ function applyFilters() {
 
   if (q) {
     list = list.filter(p => p.name.includes(q) || String(p.id) === q || String(p.id).padStart(3, '0') === q);
+  }
+
+  if (teamOnlyMode) {
+    list = list.filter(p => team.has(p.name));
   }
 
   if (activeTypeFilters.size > 0) {
@@ -184,8 +202,13 @@ function buildCard(p) {
     <span>
       <span class="pk-card__id">#${String(p.id).padStart(3, '0')}</span>
       <span class="pk-card__name">${p.name}</span>
-    </span>`;
-  card.addEventListener('click', () => selectPokemon(p.name));
+    </span>
+    <span class="pk-card__star ${team.has(p.name) ? 'is-active' : ''}" data-star="${p.name}">★</span>`;
+  card.addEventListener('click', (e) => {
+    const star = e.target.closest('[data-star]');
+    if (star) { e.stopPropagation(); toggleTeamMember(star.dataset.star); return; }
+    selectPokemon(p.name);
+  });
   return card;
 }
 
@@ -193,6 +216,84 @@ function highlightSelectedCard() {
   [...listGrid.children].forEach(c => {
     c.classList.toggle('is-selected', currentData && c.dataset.name === currentData.name);
   });
+}
+
+/* ---------- team (favoris) ---------- */
+function toggleTeamMember(name) {
+  if (team.has(name)) {
+    team.delete(name);
+  } else {
+    if (team.size >= 6) { setCacheStatus('équipe déjà pleine (6/6)'); return; }
+    team.add(name);
+  }
+  store.set('pkdx_team_v1', [...team]);
+  $('teamCount').textContent = `${team.size}/6`;
+
+  // sync star states everywhere on screen
+  document.querySelectorAll(`[data-star="${cssEscape(name)}"]`).forEach(s => s.classList.toggle('is-active', team.has(name)));
+  if (currentData && currentData.name === name) {
+    $('teamStar').setAttribute('aria-pressed', String(team.has(name)));
+  }
+  if (teamOnlyMode) { applyFilters(); renderTeamPanel(); }
+  else if (teamPanel && !teamPanel.hidden) { renderTeamPanel(); }
+}
+
+function cssEscape(s) {
+  return window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
+async function renderTeamPanel() {
+  $('teamCount').textContent = `${team.size}/6`;
+  const membersEl = $('teamMembers');
+  const weakEl = $('teamWeak');
+
+  if (team.size === 0) {
+    membersEl.innerHTML = '<p class="hint">Clique sur l\'étoile ★ d\'un Pokémon (dans la liste ou sa fiche) pour l\'ajouter à ton équipe.</p>';
+    weakEl.innerHTML = '';
+    return;
+  }
+
+  const names = [...team];
+  const dataList = await Promise.all(names.map(n => fetchPokemon(n)));
+
+  membersEl.innerHTML = dataList.map(d => `
+    <div class="team-member">
+      <img src="${SPRITE_BASE}/${d.id}.png" alt="${d.name}" loading="lazy">
+      <span class="team-member__name">${d.name}</span>
+      <button class="team-member__remove" data-star="${d.name}" title="Retirer">✕</button>
+    </div>`).join('');
+
+  membersEl.querySelectorAll('[data-star]').forEach(btn =>
+    btn.addEventListener('click', () => toggleTeamMember(btn.dataset.star))
+  );
+
+  // combined weaknesses: for each attacking type, count how many team members take x2+ damage
+  const relationsPerPokemon = await Promise.all(
+    dataList.map(d => Promise.all(d.types.map(t => getTypeDamageRelations(t))))
+  );
+
+  const counts = ALL_TYPES.map(atk => {
+    let weakCount = 0;
+    relationsPerPokemon.forEach(relList => {
+      let mult = 1;
+      relList.forEach(rel => {
+        if (rel.zero.includes(atk)) mult *= 0;
+        else if (rel.double.includes(atk)) mult *= 2;
+        else if (rel.half.includes(atk)) mult *= 0.5;
+      });
+      if (mult >= 2) weakCount++;
+    });
+    return { type: atk, weakCount };
+  }).filter(r => r.weakCount > 0).sort((a, b) => b.weakCount - a.weakCount);
+
+  weakEl.innerHTML = counts.length ? `
+    <span class="team-panel__weak-title">Faiblesses partagées par l'équipe</span>
+    <div class="team-panel__weak-grid">
+      ${counts.map(c => `
+        <span class="type-chip ${c.weakCount >= 2 ? 'is-danger' : ''}" style="background:${TYPE_COLORS[c.type]}">
+          ${c.type} <b>${c.weakCount}/${dataList.length}</b>
+        </span>`).join('')}
+    </div>` : '<p class="hint">Aucune faiblesse commune détectée pour l\'instant.</p>';
 }
 
 /* ---------- selection / navigation ---------- */
@@ -272,6 +373,7 @@ function renderDetail(data) {
   $('pkId').textContent = `#${String(data.id).padStart(3, '0')}`;
   $('pkName').textContent = data.name;
   $('shinyToggle').setAttribute('aria-pressed', 'false');
+  $('teamStar').setAttribute('aria-pressed', String(team.has(data.name)));
 
   renderSprite();
 
@@ -479,9 +581,14 @@ function flattenChain(node, trigger, acc = []) {
 
 async function renderMoves(data) {
   $('signatureMove').innerHTML = '<p class="hint">Analyse…</p>';
-  $('movesList').innerHTML = data.moves.slice(0, 60).map(m =>
-    `<span class="move-chip">${m.name.replace(/-/g, ' ')}</span>`
+  $('moveDetail').hidden = true;
+  const moveSlice = data.moves.slice(0, 60);
+  $('movesList').innerHTML = moveSlice.map(m =>
+    `<button class="move-chip" data-move="${m.name}">${m.name.replace(/-/g, ' ')}</button>`
   ).join('');
+  $('movesList').querySelectorAll('.move-chip').forEach(chip =>
+    chip.addEventListener('click', () => onMoveChipClick(chip.dataset.move, chip))
+  );
 
   const levelUpMoves = data.moves.filter(m => m.levelUp).map(m => m.name).slice(0, 12);
   let bestMove = null;
@@ -508,6 +615,48 @@ async function renderMoves(data) {
     sigEl.className = 'signature-move is-none';
     sigEl.innerHTML = `Aucune attaque clairement exclusive détectée parmi les premières capacités apprises par niveau.`;
   }
+}
+
+const DAMAGE_CLASS_FR = { physical: 'Physique', special: 'Spéciale', status: 'Statut' };
+
+async function getMoveDetails(moveName) {
+  const cacheKey = `pkdx_movedetail_${moveName}`;
+  const cached = store.get(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(`${API}/move/${moveName}`);
+  const data = await res.json();
+  const result = {
+    name: data.name,
+    type: data.type.name,
+    power: data.power,
+    accuracy: data.accuracy,
+    pp: data.pp,
+    damageClass: data.damage_class ? data.damage_class.name : ''
+  };
+  store.set(cacheKey, result);
+  return result;
+}
+
+async function onMoveChipClick(moveName, chipEl) {
+  document.querySelectorAll('.move-chip.is-active').forEach(c => c.classList.remove('is-active'));
+  chipEl.classList.add('is-active', 'is-loading');
+  const detail = await getMoveDetails(moveName);
+  chipEl.classList.remove('is-loading');
+  chipEl.style.background = TYPE_COLORS[detail.type] || '';
+
+  const box = $('moveDetail');
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="move-detail__head">
+      <span class="move-detail__name">${detail.name.replace(/-/g, ' ')}</span>
+      <span class="type-badge" style="background:${TYPE_COLORS[detail.type] || '#888'}">${detail.type}</span>
+    </div>
+    <div class="move-detail__stats">
+      <div><span>Puissance</span><b>${detail.power ?? '—'}</b></div>
+      <div><span>Précision</span><b>${detail.accuracy != null ? detail.accuracy + '%' : '—'}</b></div>
+      <div><span>PP</span><b>${detail.pp ?? '—'}</b></div>
+      <div><span>Catégorie</span><b>${DAMAGE_CLASS_FR[detail.damageClass] || detail.damageClass || '—'}</b></div>
+    </div>`;
 }
 
 async function learnerCount(moveName) {

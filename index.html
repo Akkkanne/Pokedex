@@ -34,7 +34,17 @@
       <input id="searchInput" type="text" inputmode="search" placeholder="Nom ou numéro… ex. dracaufeu, 006" autocomplete="off">
       <span id="searchCount" class="search__count"></span>
     </div>
-    <div class="filters" id="typeFilters"></div>
+    <div class="filters-row">
+      <button id="teamToggle" class="filter-chip filter-chip--team" aria-pressed="false">
+        ★ Équipe <span id="teamCount">0/6</span>
+      </button>
+      <div class="filters" id="typeFilters"></div>
+    </div>
+  </div>
+
+  <div class="team-panel" id="teamPanel" hidden>
+    <div class="team-panel__members" id="teamMembers"></div>
+    <div class="team-panel__weak" id="teamWeak"></div>
   </div>
 
   <main class="layout">
@@ -54,10 +64,13 @@
 
         <div class="screen__top">
           <div class="screen__id" id="pkId">#000</div>
-          <button id="shinyToggle" class="shiny-switch" aria-pressed="false" title="Basculer forme chromatique">
-            <span class="shiny-switch__label">SHINY</span>
-            <span class="shiny-switch__track"><span class="shiny-switch__thumb"></span></span>
-          </button>
+          <div class="screen__top-actions">
+            <button id="teamStar" class="star-btn" aria-pressed="false" title="Ajouter / retirer de l'équipe">★</button>
+            <button id="shinyToggle" class="shiny-switch" aria-pressed="false" title="Basculer forme chromatique">
+              <span class="shiny-switch__label">SHINY</span>
+              <span class="shiny-switch__track"><span class="shiny-switch__thumb"></span></span>
+            </button>
+          </div>
         </div>
 
         <div class="screen__portrait">
@@ -90,6 +103,7 @@
         <div class="tab-panel" id="panel-moves">
           <p class="hint">Attaque signature détectée automatiquement (apprise par très peu d'autres Pokémon).</p>
           <div id="signatureMove" class="signature-move"></div>
+          <div id="moveDetail" class="move-detail" hidden></div>
           <div id="movesList" class="moves-list"></div>
         </div>
 
