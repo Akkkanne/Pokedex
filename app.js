@@ -346,10 +346,14 @@ async function fetchPokemon(name) {
     height: pk.height,
     weight: pk.weight,
     abilities: pk.abilities.map(a => ({ name: a.ability.name, hidden: a.is_hidden })),
-    moves: pk.moves.map(m => ({
-      name: m.move.name,
-      levelUp: m.version_group_details.some(v => v.move_learn_method.name === 'level-up')
-    })),
+    moves: pk.moves.map(m => {
+      const levelUpDetails = m.version_group_details.filter(v => v.move_learn_method.name === 'level-up');
+      return {
+        name: m.move.name,
+        levelUp: levelUpDetails.length > 0,
+        level: levelUpDetails.length ? Math.min(...levelUpDetails.map(v => v.level_learned_at)) : null
+      };
+    }),
     speciesUrl: pk.species.url,
     evolutionChainUrl: sp.evolution_chain ? sp.evolution_chain.url : null,
     flavorText: flavor ? flavor.flavor_text.replace(/[\n\f\u000c]/g, ' ') : '',
@@ -582,10 +586,20 @@ function flattenChain(node, trigger, acc = []) {
 async function renderMoves(data) {
   $('signatureMove').innerHTML = '<p class="hint">Analyse…</p>';
   $('moveDetail').hidden = true;
-  const moveSlice = data.moves.slice(0, 60);
-  $('movesList').innerHTML = moveSlice.map(m =>
-    `<button class="move-chip" data-move="${m.name}">${m.name.replace(/-/g, ' ')}</button>`
-  ).join('');
+
+  // ordre d'apprentissage : d'abord les attaques par niveau (croissant), puis le reste (CT, œuf…) par ordre alphabétique
+  const sortedMoves = [...data.moves].sort((a, b) => {
+    if (a.levelUp && b.levelUp) return (a.level ?? 0) - (b.level ?? 0);
+    if (a.levelUp) return -1;
+    if (b.levelUp) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  const moveSlice = sortedMoves.slice(0, 80);
+
+  $('movesList').innerHTML = moveSlice.map(m => `
+    <button class="move-chip" data-move="${m.name}">
+      ${m.levelUp ? `<span class="move-chip__level">Nv.${m.level}</span>` : ''}${m.name.replace(/-/g, ' ')}
+    </button>`).join('');
   $('movesList').querySelectorAll('.move-chip').forEach(chip =>
     chip.addEventListener('click', () => onMoveChipClick(chip.dataset.move, chip))
   );
@@ -638,7 +652,11 @@ async function getMoveDetails(moveName) {
 }
 
 async function onMoveChipClick(moveName, chipEl) {
-  document.querySelectorAll('.move-chip.is-active').forEach(c => c.classList.remove('is-active'));
+  // réinitialise toutes les pastilles (couleur + état actif) avant d'appliquer la nouvelle sélection
+  document.querySelectorAll('#movesList .move-chip').forEach(c => {
+    c.classList.remove('is-active');
+    c.style.background = '';
+  });
   chipEl.classList.add('is-active', 'is-loading');
   const detail = await getMoveDetails(moveName);
   chipEl.classList.remove('is-loading');

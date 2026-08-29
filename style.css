@@ -480,6 +480,10 @@ button:focus-visible, input:focus-visible {
 .move-chip:hover { background: #00000018; }
 .move-chip.is-active { color: #fff; font-weight: 600; }
 .move-chip.is-loading { opacity: 0.6; }
+.move-chip__level {
+  font-family: var(--font-mono); font-size: 9px; opacity: 0.6;
+  margin-right: 4px;
+}
 
 .move-detail {
   background: #fff;
