@@ -280,6 +280,7 @@ function renderDetail(data) {
   ).join('');
 
   renderStats(data);
+  renderTypeChart(data);
   renderEvolution(data);
   renderMoves(data);
   renderAbout(data);
@@ -344,6 +345,68 @@ function statColor(value) {
   const g = Math.round(lo[1][1] + (hi[1][1] - lo[1][1]) * t);
   const b = Math.round(lo[1][2] + (hi[1][2] - lo[1][2]) * t);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+const ALL_TYPES = Object.keys(TYPE_COLORS);
+
+/* récupère (et met en cache) les relations de dégâts d'un type défenseur */
+async function getTypeDamageRelations(type) {
+  const cacheKey = `pkdx_typedmg_${type}`;
+  const cached = store.get(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(`${API}/type/${type}`);
+  const data = await res.json();
+  const rel = {
+    double: data.damage_relations.double_damage_from.map(t => t.name), // reçoit x2 de ces types
+    half: data.damage_relations.half_damage_from.map(t => t.name),     // reçoit x0.5
+    zero: data.damage_relations.no_damage_from.map(t => t.name)        // immunisé
+  };
+  store.set(cacheKey, rel);
+  return rel;
+}
+
+async function renderTypeChart(data) {
+  const chartEl = $('typeChart');
+  chartEl.innerHTML = '<p class="hint">Calcul des faiblesses…</p>';
+
+  // une relation par type du Pokémon (1 ou 2), puis on multiplie les deux entre elles
+  const relationsPerDefType = await Promise.all(data.types.map(t => getTypeDamageRelations(t)));
+
+  if (!currentData || currentData.name !== data.name) return;
+
+  const results = ALL_TYPES.map(atk => {
+    let mult = 1;
+    relationsPerDefType.forEach(rel => {
+      if (rel.zero.includes(atk)) mult *= 0;
+      else if (rel.double.includes(atk)) mult *= 2;
+      else if (rel.half.includes(atk)) mult *= 0.5;
+    });
+    return { type: atk, mult };
+  }).sort((a, b) => b.mult - a.mult);
+
+  chartEl.innerHTML = `
+    <h3 class="type-chart__title">Faiblesses &amp; résistances</h3>
+    <div class="type-chart__grid">
+      ${results.map(r => `
+        <span class="type-chip" style="background:${TYPE_COLORS[r.type]}">
+          ${r.type}
+          <b class="type-chip__mult ${multClass(r.mult)}">${formatMult(r.mult)}</b>
+        </span>`).join('')}
+    </div>`;
+}
+
+function multClass(m) {
+  if (m === 0) return 'is-immune';
+  if (m >= 4) return 'is-veryweak';
+  if (m === 2) return 'is-weak';
+  if (m === 1) return 'is-neutral';
+  if (m === 0.5) return 'is-resist';
+  return 'is-veryresist'; // 0.25
+}
+
+function formatMult(m) {
+  const s = m.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return `×${s === '' ? '0' : s}`;
 }
 
 async function renderEvolution(data) {
