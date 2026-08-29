@@ -17,6 +17,16 @@ const STAT_LABELS = {
   'special-attack': 'Atq. Spé', 'special-defense': 'Déf. Spé', speed: 'Vitesse'
 };
 
+/* ---------- cache (localStorage) ---------- */
+const store = {
+  get(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+  },
+  set(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota: ignore */ }
+  }
+};
+
 /* ---------- state ---------- */
 let allNames = [];       // [{name, id}] full national dex list
 let filteredNames = [];  // after search/type filter
@@ -29,16 +39,6 @@ let team = new Set(store.get('pkdx_team_v1') || []);
 let teamOnlyMode = false;
 const detailCache = new Map();
 const moveCache = new Map();
-
-/* ---------- cache (localStorage) ---------- */
-const store = {
-  get(key) {
-    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
-  },
-  set(key, val) {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* quota: ignore */ }
-  }
-};
 
 /* ---------- dom refs ---------- */
 const $ = (id) => document.getElementById(id);
