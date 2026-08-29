@@ -37,6 +37,10 @@ let showShiny = false;
 let activeTypeFilters = new Set();
 let team = new Set(store.get('pkdx_team_v1') || []);
 let teamOnlyMode = false;
+let POKEMON_FR = {};   // id -> nom français
+let TYPE_FR = {};      // slug -> nom français
+let MOVE_FR = {};      // slug -> nom français
+let ABILITY_FR = {};   // slug -> nom français
 const detailCache = new Map();
 const moveCache = new Map();
 
@@ -60,8 +64,42 @@ async function init() {
   buildTypeFilters();
   bindEvents();
   $('teamCount').textContent = `${team.size}/6`;
-  await loadNameList();
+  await Promise.all([loadTranslations(), loadNameList()]);
+  buildTypeFilters(); // rebuild with French labels once translations are ready
   applyFilters();
+}
+
+/* ---------- traductions françaises (fichiers statiques, chargés une seule fois) ---------- */
+async function loadTranslations() {
+  try {
+    const [pk, ty, mv, ab] = await Promise.all([
+      fetch('pokemon-fr.json').then(r => r.json()),
+      fetch('type-fr.json').then(r => r.json()),
+      fetch('move-fr.json').then(r => r.json()),
+      fetch('ability-fr.json').then(r => r.json())
+    ]);
+    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab;
+  } catch {
+    // pas grave : l'app retombe sur les noms anglais si les fichiers sont indisponibles
+  }
+}
+
+function pkNameFr(id, fallbackEnName) {
+  return POKEMON_FR[String(id)] || fallbackEnName;
+}
+function typeNameFr(slug) {
+  return TYPE_FR[slug] || slug;
+}
+function moveNameFr(slug) {
+  return MOVE_FR[slug] || slug.replace(/-/g, ' ');
+}
+function abilityNameFr(slug) {
+  return ABILITY_FR[slug] || slug.replace(/-/g, ' ');
+}
+
+/* accent-insensitive, pour que la recherche marche pareil en FR et EN */
+function normalizeSearch(str) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function buildTypeFilters() {
@@ -69,7 +107,8 @@ function buildTypeFilters() {
   Object.keys(TYPE_COLORS).forEach((type) => {
     const chip = document.createElement('button');
     chip.className = 'filter-chip';
-    chip.textContent = type;
+    chip.textContent = typeNameFr(type);
+    chip.classList.toggle('is-active', activeTypeFilters.has(type));
     chip.style.setProperty('--type-color', TYPE_COLORS[type]);
     chip.addEventListener('click', () => {
       if (activeTypeFilters.has(type)) activeTypeFilters.delete(type);
@@ -136,11 +175,17 @@ function setCacheStatus(msg) {
 
 /* ---------- filtering / list rendering ---------- */
 function applyFilters() {
-  const q = searchInput.value.trim().toLowerCase();
+  const q = normalizeSearch(searchInput.value.trim());
   let list = allNames;
 
   if (q) {
-    list = list.filter(p => p.name.includes(q) || String(p.id) === q || String(p.id).padStart(3, '0') === q);
+    list = list.filter(p => {
+      const frName = POKEMON_FR[String(p.id)];
+      return p.name.includes(q)
+        || (frName && normalizeSearch(frName).includes(q))
+        || String(p.id) === q
+        || String(p.id).padStart(3, '0') === q;
+    });
   }
 
   if (teamOnlyMode) {
@@ -201,7 +246,7 @@ function buildCard(p) {
     <img class="pk-card__img" loading="lazy" src="${SPRITE_BASE}/${spriteId}.png" alt="">
     <span>
       <span class="pk-card__id">#${String(p.id).padStart(3, '0')}</span>
-      <span class="pk-card__name">${p.name}</span>
+      <span class="pk-card__name">${pkNameFr(p.id, p.name)}</span>
     </span>
     <span class="pk-card__star ${team.has(p.name) ? 'is-active' : ''}" data-star="${p.name}">★</span>`;
   card.addEventListener('click', (e) => {
@@ -259,7 +304,7 @@ async function renderTeamPanel() {
   membersEl.innerHTML = dataList.map(d => `
     <div class="team-member">
       <img src="${SPRITE_BASE}/${d.id}.png" alt="${d.name}" loading="lazy">
-      <span class="team-member__name">${d.name}</span>
+      <span class="team-member__name">${pkNameFr(d.id, d.name)}</span>
       <button class="team-member__remove" data-star="${d.name}" title="Retirer">✕</button>
     </div>`).join('');
 
@@ -291,7 +336,7 @@ async function renderTeamPanel() {
     <div class="team-panel__weak-grid">
       ${counts.map(c => `
         <span class="type-chip ${c.weakCount >= 2 ? 'is-danger' : ''}" style="background:${TYPE_COLORS[c.type]}">
-          ${c.type} <b>${c.weakCount}/${dataList.length}</b>
+          ${typeNameFr(c.type)} <b>${c.weakCount}/${dataList.length}</b>
         </span>`).join('')}
     </div>` : '<p class="hint">Aucune faiblesse commune détectée pour l\'instant.</p>';
 }
@@ -375,14 +420,14 @@ function renderDetail(data) {
   document.documentElement.style.setProperty('--type-color', TYPE_COLORS[mainType] || '#e0483e');
 
   $('pkId').textContent = `#${String(data.id).padStart(3, '0')}`;
-  $('pkName').textContent = data.name;
+  $('pkName').textContent = pkNameFr(data.id, data.name);
   $('shinyToggle').setAttribute('aria-pressed', 'false');
   $('teamStar').setAttribute('aria-pressed', String(team.has(data.name)));
 
   renderSprite();
 
   $('pkTypes').innerHTML = data.types.map(t =>
-    `<span class="type-badge" style="background:${TYPE_COLORS[t] || '#888'}">${t}</span>`
+    `<span class="type-badge" style="background:${TYPE_COLORS[t] || '#888'}">${typeNameFr(t)}</span>`
   ).join('');
 
   renderStats(data);
@@ -506,7 +551,7 @@ async function renderTypeChart(data) {
       <div class="type-group type-group--${multClass(g.mult)}">
         <span class="type-group__label">${g.label}</span>
         <div class="type-group__chips">
-          ${items.map(r => `<span class="type-chip" style="background:${TYPE_COLORS[r.type]}">${r.type}</span>`).join('')}
+          ${items.map(r => `<span class="type-chip" style="background:${TYPE_COLORS[r.type]}">${typeNameFr(r.type)}</span>`).join('')}
         </div>
       </div>`;
   }).join('');
@@ -559,7 +604,7 @@ async function renderEvolution(data) {
     node.className = 'evo-node' + (step.name === data.name ? ' is-current' : '');
     node.innerHTML = `
       <img src="${SPRITE_BASE}/${step.id}.png" alt="${step.name}" loading="lazy">
-      <span class="evo-node__name">${step.name}</span>`;
+      <span class="evo-node__name">${pkNameFr(step.id, step.name)}</span>`;
     node.addEventListener('click', () => selectPokemon(step.name));
     evoEl.appendChild(node);
   });
@@ -598,7 +643,7 @@ async function renderMoves(data) {
 
   $('movesList').innerHTML = moveSlice.map(m => `
     <button class="move-chip" data-move="${m.name}">
-      ${m.levelUp ? `<span class="move-chip__level">Nv.${m.level}</span>` : ''}${m.name.replace(/-/g, ' ')}
+      ${m.levelUp ? `<span class="move-chip__level">Nv.${m.level}</span>` : ''}${moveNameFr(m.name)}
     </button>`).join('');
   $('movesList').querySelectorAll('.move-chip').forEach(chip =>
     chip.addEventListener('click', () => onMoveChipClick(chip.dataset.move, chip))
@@ -623,7 +668,7 @@ async function renderMoves(data) {
   if (bestMove && bestCount <= 2) {
     sigEl.className = 'signature-move';
     sigEl.innerHTML = `
-      <div class="signature-move__name">${bestMove.replace(/-/g, ' ')}</div>
+      <div class="signature-move__name">${moveNameFr(bestMove)}</div>
       <div class="signature-move__meta">Apprise par ${bestCount} Pokémon seulement — probable attaque signature</div>`;
   } else {
     sigEl.className = 'signature-move is-none';
@@ -666,8 +711,8 @@ async function onMoveChipClick(moveName, chipEl) {
   box.hidden = false;
   box.innerHTML = `
     <div class="move-detail__head">
-      <span class="move-detail__name">${detail.name.replace(/-/g, ' ')}</span>
-      <span class="type-badge" style="background:${TYPE_COLORS[detail.type] || '#888'}">${detail.type}</span>
+      <span class="move-detail__name">${moveNameFr(detail.name)}</span>
+      <span class="type-badge" style="background:${TYPE_COLORS[detail.type] || '#888'}">${typeNameFr(detail.type)}</span>
     </div>
     <div class="move-detail__stats">
       <div><span>Puissance</span><b>${detail.power ?? '—'}</b></div>
@@ -697,7 +742,7 @@ async function learnerCount(moveName) {
 function renderAbout(data) {
   const heightM = (data.height / 10).toFixed(1);
   const weightKg = (data.weight / 10).toFixed(1);
-  const abilities = data.abilities.map(a => a.name.replace(/-/g, ' ') + (a.hidden ? ' (cachée)' : '')).join(', ');
+  const abilities = data.abilities.map(a => abilityNameFr(a.name) + (a.hidden ? ' (cachée)' : '')).join(', ');
 
   $('aboutGrid').innerHTML = `
     <div class="about-cell"><div class="about-cell__label">Taille</div><div class="about-cell__val">${heightM} m</div></div>

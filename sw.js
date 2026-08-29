@@ -1,5 +1,8 @@
-const CACHE_NAME = 'pokedex-shell-v1';
-const SHELL_FILES = ['./', './index.html', './style.css', './app.js', './manifest.json'];
+const CACHE_NAME = 'pokedex-shell-v2';
+const SHELL_FILES = [
+  './', './index.html', './style.css', './app.js', './manifest.json',
+  './pokemon-fr.json', './type-fr.json', './move-fr.json', './ability-fr.json'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
