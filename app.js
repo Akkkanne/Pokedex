@@ -301,9 +301,44 @@ function renderStats(data) {
   $('statsList').innerHTML = data.stats.map(s => `
     <div class="stat-row">
       <span class="stat-row__label">${STAT_LABELS[s.key] || s.key}</span>
-      <span class="stat-row__bar"><span class="stat-row__fill" style="width:${Math.min(100, s.base / max * 100)}%"></span></span>
+      <span class="stat-row__bar"><span class="stat-row__fill" style="width:0%;background:${statColor(s.base)}" data-width="${Math.min(100, s.base / max * 100)}"></span></span>
       <span class="stat-row__val">${s.base}</span>
     </div>`).join('') + `<div class="stats-total"><span>Total</span><span>${total}</span></div>`;
+
+  // trigger the fill animation on next frame (from 0 to actual width)
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.stat-row__fill').forEach(el => {
+      el.style.width = el.dataset.width + '%';
+    });
+  });
+}
+
+/* stat value -> couleur : rouge (mauvais) -> vert (bon) -> bleu (excellent) */
+const STAT_COLOR_STOPS = [
+  [0,   [224, 72, 62]],   // rouge — mauvais
+  [50,  [230, 126, 34]],  // orange — faible
+  [80,  [241, 196, 15]],  // jaune — moyen
+  [100, [111, 207, 87]],  // vert clair — bon
+  [120, [39, 174, 96]],   // vert — très bon
+  [150, [47, 128, 237]]   // bleu — excellent, digne des meilleurs
+];
+
+function statColor(value) {
+  const v = Math.max(0, Math.min(150, value));
+  let lo = STAT_COLOR_STOPS[0], hi = STAT_COLOR_STOPS[STAT_COLOR_STOPS.length - 1];
+  for (let i = 0; i < STAT_COLOR_STOPS.length - 1; i++) {
+    if (v >= STAT_COLOR_STOPS[i][0] && v <= STAT_COLOR_STOPS[i + 1][0]) {
+      lo = STAT_COLOR_STOPS[i];
+      hi = STAT_COLOR_STOPS[i + 1];
+      break;
+    }
+  }
+  const range = hi[0] - lo[0] || 1;
+  const t = (v - lo[0]) / range;
+  const r = Math.round(lo[1][0] + (hi[1][0] - lo[1][0]) * t);
+  const g = Math.round(lo[1][1] + (hi[1][1] - lo[1][1]) * t);
+  const b = Math.round(lo[1][2] + (hi[1][2] - lo[1][2]) * t);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 async function renderEvolution(data) {
