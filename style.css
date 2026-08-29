@@ -378,6 +378,29 @@ button:focus-visible, input:focus-visible {
   color: #fff;
 }
 
+.forms-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: -6px 0 16px;
+}
+.form-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 5px 11px;
+  border-radius: 100px;
+  background: #00000010;
+  color: #00000088;
+  transition: background .12s ease, color .12s ease;
+}
+.form-chip:hover { background: #00000018; }
+.form-chip.is-active {
+  background: var(--type-color, var(--accent));
+  color: #fff;
+  font-weight: 600;
+}
+
 .tabs {
   display: flex;
   gap: 4px;

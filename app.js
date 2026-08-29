@@ -41,6 +41,7 @@ let POKEMON_FR = {};   // id -> nom français
 let TYPE_FR = {};      // slug -> nom français
 let MOVE_FR = {};      // slug -> nom français
 let ABILITY_FR = {};   // slug -> nom français
+let FORMS_FR = {};     // slug de forme (ex. "charizard-mega-x") -> { speciesId, name, isMega }
 const detailCache = new Map();
 const moveCache = new Map();
 
@@ -72,16 +73,22 @@ async function init() {
 /* ---------- traductions françaises (fichiers statiques, chargés une seule fois) ---------- */
 async function loadTranslations() {
   try {
-    const [pk, ty, mv, ab] = await Promise.all([
+    const [pk, ty, mv, ab, fo] = await Promise.all([
       fetch('pokemon-fr.json').then(r => r.json()),
       fetch('type-fr.json').then(r => r.json()),
       fetch('move-fr.json').then(r => r.json()),
-      fetch('ability-fr.json').then(r => r.json())
+      fetch('ability-fr.json').then(r => r.json()),
+      fetch('forms-fr.json').then(r => r.json())
     ]);
-    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab;
+    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab; FORMS_FR = fo;
   } catch {
     // pas grave : l'app retombe sur les noms anglais si les fichiers sont indisponibles
   }
+}
+
+/* nom d'affichage : gère aussi bien les Pokémon de base que leurs formes (Méga, régionales…) */
+function displayName(data) {
+  return FORMS_FR[data.name]?.name || pkNameFr(data.id, data.name);
 }
 
 function pkNameFr(id, fallbackEnName) {
@@ -384,11 +391,10 @@ async function fetchPokemon(name) {
   let cached = store.get(cacheKey);
   if (cached) { detailCache.set(name, cached); return cached; }
 
-  const [pkRes, spRes] = await Promise.all([
-    fetch(`${API}/pokemon/${name}`),
-    fetch(`${API}/pokemon-species/${name}`)
-  ]);
+  const pkRes = await fetch(`${API}/pokemon/${name}`);
   const pk = await pkRes.json();
+  // pk.species.url pointe toujours vers la bonne espèce de base, même pour une forme (Méga, régionale…)
+  const spRes = await fetch(pk.species.url);
   const sp = await spRes.json();
 
   const flavor = (sp.flavor_text_entries || []).find(f => f.language.name === 'fr')
@@ -397,6 +403,7 @@ async function fetchPokemon(name) {
   const result = {
     id: pk.id,
     name: pk.name,
+    speciesId: sp.id,
     types: pk.types.map(t => t.type.name),
     stats: pk.stats.map(s => ({ key: s.stat.name, base: s.base_stat })),
     height: pk.height,
@@ -431,7 +438,7 @@ function renderDetail(data) {
   document.documentElement.style.setProperty('--type-color', TYPE_COLORS[mainType] || '#e0483e');
 
   $('pkId').textContent = `#${String(data.id).padStart(3, '0')}`;
-  $('pkName').textContent = pkNameFr(data.id, data.name);
+  $('pkName').textContent = displayName(data);
   $('shinyToggle').setAttribute('aria-pressed', 'false');
   $('teamStar').setAttribute('aria-pressed', String(team.has(data.name)));
 
@@ -440,6 +447,8 @@ function renderDetail(data) {
   $('pkTypes').innerHTML = data.types.map(t =>
     `<span class="type-badge" style="background:${TYPE_COLORS[t] || '#888'}">${typeNameFr(t)}</span>`
   ).join('');
+
+  renderForms(data);
 
   renderStats(data);
   renderTypeChart(data);
@@ -454,13 +463,52 @@ function renderSprite() {
   const path = variant ? `${SPRITE_BASE}/shiny/${spriteId}.png` : `${SPRITE_BASE}/${spriteId}.png`;
   const img = $('pkSprite');
   img.src = path;
-  img.alt = `${currentData.name}${showShiny ? ' (chromatique)' : ''}`;
+  img.alt = `${displayName(currentData)}${showShiny ? ' (chromatique)' : ''}`;
 }
 
 function toggleShiny() {
   showShiny = !showShiny;
   $('shinyToggle').setAttribute('aria-pressed', String(showShiny));
   renderSprite();
+}
+
+/* ---------- formes alternatives (Méga, Gigamax, régionales…) ---------- */
+function renderForms(data) {
+  const row = $('formsRow');
+  const speciesId = FORMS_FR[data.name]?.speciesId || data.speciesId || data.id;
+  const baseEntry = allNames.find(p => p.id === speciesId);
+  const baseSlug = baseEntry ? baseEntry.name : data.name;
+
+  const altSlugs = Object.keys(FORMS_FR).filter(slug => FORMS_FR[slug].speciesId === speciesId);
+
+  if (altSlugs.length === 0) {
+    row.hidden = true;
+    row.innerHTML = '';
+    return;
+  }
+
+  const chips = [
+    { slug: baseSlug, label: pkNameFr(speciesId, baseSlug) },
+    ...altSlugs.map(slug => ({ slug, label: FORMS_FR[slug].name }))
+  ];
+
+  row.hidden = false;
+  row.innerHTML = chips.map(c => `
+    <button class="form-chip ${c.slug === data.name ? 'is-active' : ''}" data-form="${c.slug}">${c.label}</button>
+  `).join('');
+  row.querySelectorAll('.form-chip').forEach(btn =>
+    btn.addEventListener('click', () => selectForm(btn.dataset.form))
+  );
+}
+
+async function selectForm(slug) {
+  if (currentData && currentData.name === slug) return;
+  screenContent.style.opacity = '0.5';
+  const data = await fetchPokemon(slug);
+  currentData = data;
+  showShiny = false;
+  renderDetail(data);
+  screenContent.style.opacity = '1';
 }
 
 function renderStats(data) {
