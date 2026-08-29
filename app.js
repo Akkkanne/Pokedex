@@ -382,17 +382,32 @@ async function renderTypeChart(data) {
       else if (rel.half.includes(atk)) mult *= 0.5;
     });
     return { type: atk, mult };
-  }).sort((a, b) => b.mult - a.mult);
+  });
+
+  const GROUPS = [
+    { mult: 4,    label: 'Très faible ×4' },
+    { mult: 2,    label: 'Faible ×2' },
+    { mult: 1,    label: 'Neutre ×1' },
+    { mult: 0.5,  label: 'Résiste ×0.5' },
+    { mult: 0.25, label: 'Résiste beaucoup ×0.25' },
+    { mult: 0,    label: 'Immunisé ×0' }
+  ];
+
+  const groupsHtml = GROUPS.map(g => {
+    const items = results.filter(r => r.mult === g.mult);
+    if (!items.length) return '';
+    return `
+      <div class="type-group type-group--${multClass(g.mult)}">
+        <span class="type-group__label">${g.label}</span>
+        <div class="type-group__chips">
+          ${items.map(r => `<span class="type-chip" style="background:${TYPE_COLORS[r.type]}">${r.type}</span>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
 
   chartEl.innerHTML = `
     <h3 class="type-chart__title">Faiblesses &amp; résistances</h3>
-    <div class="type-chart__grid">
-      ${results.map(r => `
-        <span class="type-chip" style="background:${TYPE_COLORS[r.type]}">
-          ${r.type}
-          <b class="type-chip__mult ${multClass(r.mult)}">${formatMult(r.mult)}</b>
-        </span>`).join('')}
-    </div>`;
+    ${groupsHtml}`;
 }
 
 function multClass(m) {

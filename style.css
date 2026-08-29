@@ -356,28 +356,42 @@ button:focus-visible, input:focus-visible {
 .stat-row__val { font-family: var(--font-mono); font-size: 12px; text-align: right; }
 .stats-total { margin-top: 6px; font-family: var(--font-mono); font-size: 12px; color: #00000066; display:flex; justify-content: space-between; border-top: 1px dashed #00000020; padding-top: 10px; }
 
-/* type chart (faiblesses / résistances) */
+/* type chart (faiblesses / résistances), groupé par palier */
 .type-chart { margin-top: 20px; }
 .type-chart__title {
   font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
-  letter-spacing: 0.5px; color: #00000066; margin: 0 0 10px;
+  letter-spacing: 0.5px; color: #00000066; margin: 0 0 12px;
 }
-.type-chart__grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.type-group { margin-bottom: 12px; }
+.type-group__label {
+  display: block;
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: #00000066; margin-bottom: 6px;
+}
+.type-group__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
 .type-chip {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center;
   font-size: 11px; text-transform: capitalize; color: #fff;
-  padding: 5px 6px 5px 11px; border-radius: 100px;
+  padding: 5px 12px; border-radius: 100px;
 }
-.type-chip__mult {
-  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
-  padding: 3px 7px; border-radius: 100px; background: #00000035; color: #fff;
+
+/* le palier x4 ressort visuellement : chips plus grandes, bloc encadré */
+.type-group--is-veryweak {
+  background: #e0483e14;
+  border: 1px solid #e0483e40;
+  border-radius: 10px;
+  padding: 10px 10px 8px;
 }
-.type-chip__mult.is-veryweak { background: #a7281f; }
-.type-chip__mult.is-weak { background: #d1652b; }
-.type-chip__mult.is-neutral { background: #00000030; opacity: 0.75; }
-.type-chip__mult.is-resist { background: #2f8f4e; }
-.type-chip__mult.is-veryresist { background: #1c6b3a; }
-.type-chip__mult.is-immune { background: #22252c; }
+.type-group--is-veryweak .type-group__label { color: #c0392b; font-weight: 700; }
+.type-group--is-veryweak .type-chip { font-size: 13px; font-weight: 700; padding: 7px 16px; box-shadow: 0 2px 6px #00000022; }
+
+.type-group--is-weak .type-chip { opacity: 0.95; }
+.type-group--is-neutral .type-chip { opacity: 0.55; }
+.type-group--is-resist .type-chip { opacity: 0.8; }
+.type-group--is-veryresist .type-chip { opacity: 0.8; }
+.type-group--is-immune .type-chip { opacity: 0.9; filter: grayscale(0.15); }
 
 /* evolution */
 .evo-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: center; }
