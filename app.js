@@ -206,6 +206,7 @@ function applyFilters() {
   const q = normalizeSearch(searchInput.value.trim());
   let list = allNames;
   let formMatches = [];
+  $('searchContext').hidden = true;
 
   if (q) {
     list = list.filter(p => {
@@ -239,6 +240,16 @@ function applyFilters() {
     return;
   }
 
+  // si rien ne correspond à un nom de Pokémon/forme, on regarde si le texte tapé désigne une attaque ou un talent
+  if (q && q.length >= 3 && list.length === 0 && formMatches.length === 0 && !teamOnlyMode) {
+    searchMoveOrAbility(q);
+    filteredNames = [];
+    renderedCount = 0;
+    listGrid.innerHTML = '';
+    renderList(false);
+    return;
+  }
+
   filteredNames = [...list, ...formMatches];
   renderedCount = 0;
   listGrid.innerHTML = '';
@@ -254,6 +265,74 @@ function getMatchingForms(q, limit = Infinity) {
       const f = FORMS_FR[slug];
       return { name: slug, id: f.id, dexId: f.speciesId, label: f.name, isForm: true };
     });
+}
+
+/* si le texte tapé correspond à une attaque ou un talent connu, on liste tous les Pokémon qui l'ont */
+function findMoveMatch(q) {
+  let exact = null, partial = null;
+  for (const slug of Object.keys(MOVE_FR)) {
+    const nSlug = normalizeSearch(slug.replace(/-/g, ' '));
+    const nName = normalizeSearch(MOVE_FR[slug]);
+    if (nSlug === q || nName === q) return slug;
+    if (!partial && (nSlug.includes(q) || nName.includes(q))) partial = slug;
+  }
+  return exact || partial;
+}
+
+function findAbilityMatch(q) {
+  let exact = null, partial = null;
+  for (const slug of Object.keys(ABILITY_FR)) {
+    const nSlug = normalizeSearch(slug.replace(/-/g, ' '));
+    const nName = normalizeSearch(ABILITY_FR[slug]);
+    if (nSlug === q || nName === q) return slug;
+    if (!partial && (nSlug.includes(q) || nName.includes(q))) partial = slug;
+  }
+  return exact || partial;
+}
+
+async function getPokemonForMove(slug) {
+  const cacheKey = `pkdx_movepkmn_${slug}`;
+  const cached = store.get(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(`${API}/move/${slug}`);
+  const data = await res.json();
+  const names = (data.learned_by_pokemon || []).map(p => p.name);
+  store.set(cacheKey, names);
+  return names;
+}
+
+async function getPokemonForAbility(slug) {
+  const cacheKey = `pkdx_abilitypkmn_${slug}`;
+  const cached = store.get(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(`${API}/ability/${slug}`);
+  const data = await res.json();
+  const names = (data.pokemon || []).map(p => p.pokemon.name);
+  store.set(cacheKey, names);
+  return names;
+}
+
+async function searchMoveOrAbility(q) {
+  const moveSlug = findMoveMatch(q);
+  const abilitySlug = !moveSlug ? findAbilityMatch(q) : null; // priorité à l'attaque si les deux correspondent (rare)
+  if (!moveSlug && !abilitySlug) return;
+
+  const names = moveSlug ? await getPokemonForMove(moveSlug) : await getPokemonForAbility(abilitySlug);
+  const contextLabel = moveSlug
+    ? `Pokémon connaissant l'attaque « ${moveNameFr(moveSlug)} »`
+    : `Pokémon ayant le talent « ${abilityNameFr(abilitySlug)} »`;
+
+  // si l'utilisateur a retapé autre chose entre-temps, on ignore cette réponse devenue obsolète
+  if (normalizeSearch(searchInput.value.trim()) !== q) return;
+
+  const nameSet = new Set(names);
+  filteredNames = allNames.filter(p => nameSet.has(p.name));
+  renderedCount = 0;
+  listGrid.innerHTML = '';
+  const ctx = $('searchContext');
+  ctx.hidden = false;
+  ctx.textContent = `${contextLabel} — ${filteredNames.length} résultat${filteredNames.length > 1 ? 's' : ''}`;
+  renderList(false);
 }
 
 async function filterByTypes(types, baseList) {
@@ -568,7 +647,7 @@ function stepSelection(dir) {
 
 /* ---------- data fetching ---------- */
 async function fetchPokemon(name) {
-  const cacheKey = `pkdx_pk_${name}`;
+  const cacheKey = `pkdx_pk_v2_${name}`;
   if (detailCache.has(name)) return detailCache.get(name);
   let cached = store.get(cacheKey);
   if (cached) { detailCache.set(name, cached); return cached; }

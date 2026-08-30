@@ -115,6 +115,13 @@ button:focus-visible, input:focus-visible {
   pointer-events: none;
 }
 
+.search-context {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #f6c453;
+  margin: 8px 2px 0;
+}
+
 .filters-row { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
 .filters {
   display: flex;
