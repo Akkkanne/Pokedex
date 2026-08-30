@@ -679,9 +679,43 @@ function renderStats(data) {
   });
 
   $('statsAbilities').innerHTML = data.abilities.map(a => `
-    <span class="ability-chip ${a.hidden ? 'is-hidden' : ''}">
+    <button class="ability-chip ${a.hidden ? 'is-hidden' : ''}" data-ability="${a.name}">
       ${abilityNameFr(a.name)}${a.hidden ? ' <em>(cachée)</em>' : ''}
-    </span>`).join('');
+    </button>`).join('');
+  $('abilityDetail').hidden = true;
+  $('statsAbilities').querySelectorAll('.ability-chip').forEach(chip =>
+    chip.addEventListener('click', () => onAbilityChipClick(chip.dataset.ability, chip))
+  );
+}
+
+async function getAbilityDetails(slug) {
+  const cacheKey = `pkdx_ability_${slug}`;
+  const cached = store.get(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(`${API}/ability/${slug}`);
+  const data = await res.json();
+  const flavor = (data.flavor_text_entries || []).find(f => f.language.name === 'fr')
+              || (data.flavor_text_entries || []).find(f => f.language.name === 'en');
+  const effect = (data.effect_entries || []).find(e => e.language.name === 'en');
+  const description = flavor
+    ? flavor.flavor_text.replace(/[\n\f\u000c]/g, ' ')
+    : (effect ? effect.short_effect : 'Pas de description disponible.');
+  const result = { description };
+  store.set(cacheKey, result);
+  return result;
+}
+
+async function onAbilityChipClick(slug, chipEl) {
+  document.querySelectorAll('#statsAbilities .ability-chip').forEach(c => c.classList.remove('is-active'));
+  chipEl.classList.add('is-active', 'is-loading');
+  const box = $('abilityDetail');
+  box.hidden = false;
+  box.innerHTML = '<p class="hint">Chargement…</p>';
+  const detail = await getAbilityDetails(slug);
+  chipEl.classList.remove('is-loading');
+  box.innerHTML = `
+    <div class="ability-detail__name">${abilityNameFr(slug)}</div>
+    <p class="ability-detail__desc">${detail.description}</p>`;
 }
 
 /* stat value -> couleur : rouge (mauvais) -> vert (bon) -> bleu (excellent) */
@@ -794,7 +828,7 @@ async function renderEvolution(data) {
   evoEl.innerHTML = '<p class="hint">Chargement…</p>';
   if (!data.evolutionChainUrl) { evoEl.innerHTML = '<p class="hint">Pas de données d\'évolution.</p>'; return; }
 
-  const chainKey = `pkdx_chain_${data.evolutionChainUrl}`;
+  const chainKey = `pkdx_chain_v2_${data.evolutionChainUrl}`;
   let tree = store.get(chainKey);
   if (!tree) {
     const res = await fetch(data.evolutionChainUrl);

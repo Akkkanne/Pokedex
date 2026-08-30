@@ -530,9 +530,20 @@ button:focus-visible, input:focus-visible {
   font-size: 12px; text-transform: capitalize;
   padding: 6px 12px; border-radius: 100px;
   background: #00000010; color: var(--ink);
+  transition: background .12s ease;
 }
-.ability-chip.is-hidden { background: var(--type-color, var(--accent)); color: #fff; }
+.ability-chip:hover { background: #00000018; }
+.ability-chip.is-active { background: var(--type-color, var(--accent)); color: #fff; }
+.ability-chip.is-loading { opacity: 0.6; }
+.ability-chip.is-hidden { box-shadow: inset 0 0 0 1.5px var(--type-color, var(--accent)); }
 .ability-chip em { font-style: normal; opacity: 0.85; }
+
+.ability-detail {
+  background: #fff; border: 1px solid #00000014; border-radius: 10px;
+  padding: 12px 14px; margin-top: 10px;
+}
+.ability-detail__name { font-weight: 700; text-transform: capitalize; margin-bottom: 6px; }
+.ability-detail__desc { font-size: 13px; color: #00000099; line-height: 1.5; margin: 0; }
 
 /* type chart (faiblesses / résistances), groupé par palier */
 .type-chart { margin-top: 20px; }
