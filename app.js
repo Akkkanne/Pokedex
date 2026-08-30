@@ -778,51 +778,73 @@ async function renderEvolution(data) {
   if (!data.evolutionChainUrl) { evoEl.innerHTML = '<p class="hint">Pas de données d\'évolution.</p>'; return; }
 
   const chainKey = `pkdx_chain_${data.evolutionChainUrl}`;
-  let chain = store.get(chainKey);
-  if (!chain) {
+  let tree = store.get(chainKey);
+  if (!tree) {
     const res = await fetch(data.evolutionChainUrl);
     const json = await res.json();
-    chain = flattenChain(json.chain);
-    store.set(chainKey, chain);
+    tree = buildEvoTree(json.chain, null);
+    store.set(chainKey, tree);
   }
 
   // only re-render if this is still the selected pokemon
   if (!currentData || currentData.name !== data.name) return;
 
   evoEl.innerHTML = '';
-  chain.forEach((step, i) => {
-    if (i > 0) {
-      const arrow = document.createElement('div');
-      arrow.className = 'evo-arrow';
-      arrow.innerHTML = `<span>→</span><span>${step.trigger || ''}</span>`;
-      evoEl.appendChild(arrow);
-    }
-    const node = document.createElement('div');
-    node.className = 'evo-node' + (step.name === data.name ? ' is-current' : '');
-    node.innerHTML = `
-      <img src="${SPRITE_BASE}/${step.id}.png" alt="${step.name}" loading="lazy">
-      <span class="evo-node__name">${pkNameFr(step.id, step.name)}</span>`;
-    node.addEventListener('click', () => selectPokemon(step.name));
-    evoEl.appendChild(node);
-  });
+  evoEl.appendChild(renderEvoNode(tree, data.name));
 }
 
-function flattenChain(node, trigger, acc = []) {
+/* construit un arbre (et pas une simple liste à plat) pour bien représenter les évolutions multiples */
+function buildEvoTree(node, trigger) {
   const id = parseInt(node.species.url.split('/').filter(Boolean).pop(), 10);
-  acc.push({ name: node.species.name, id, trigger });
-  (node.evolves_to || []).forEach(next => {
-    const details = next.evolution_details && next.evolution_details[0];
-    let label = '';
-    if (details) {
-      if (details.min_level) label = `Nv. ${details.min_level}`;
-      else if (details.item) label = details.item.name.replace(/-/g, ' ');
-      else if (details.trigger && details.trigger.name === 'trade') label = 'Échange';
-      else if (details.min_happiness) label = 'Bonheur';
-      else label = details.trigger ? details.trigger.name.replace(/-/g, ' ') : '';
-    }
-    flattenChain(next, label, acc);
-  });
-  return acc;
+  return {
+    name: node.species.name,
+    id,
+    trigger: trigger || '',
+    children: (node.evolves_to || []).map(next => {
+      const details = next.evolution_details && next.evolution_details[0];
+      let label = '';
+      if (details) {
+        if (details.min_level) label = `Nv. ${details.min_level}`;
+        else if (details.item) label = details.item.name.replace(/-/g, ' ');
+        else if (details.trigger && details.trigger.name === 'trade') label = 'Échange';
+        else if (details.min_happiness) label = 'Bonheur';
+        else label = details.trigger ? details.trigger.name.replace(/-/g, ' ') : '';
+      }
+      return buildEvoTree(next, label);
+    })
+  };
+}
+
+/* rendu récursif : un nœud, et s'il a plusieurs évolutions possibles, elles sont empilées verticalement à sa droite */
+function renderEvoNode(node, currentName) {
+  const row = document.createElement('div');
+  row.className = 'evo-tree-row';
+
+  const chip = document.createElement('div');
+  chip.className = 'evo-node' + (node.name === currentName ? ' is-current' : '');
+  chip.innerHTML = `
+    <img src="${SPRITE_BASE}/${node.id}.png" alt="${node.name}" loading="lazy">
+    <span class="evo-node__name">${pkNameFr(node.id, node.name)}</span>`;
+  chip.addEventListener('click', () => selectPokemon(node.name));
+  row.appendChild(chip);
+
+  if (node.children.length) {
+    const branches = document.createElement('div');
+    branches.className = 'evo-branches' + (node.children.length > 1 ? ' has-multiple' : '');
+    node.children.forEach(child => {
+      const item = document.createElement('div');
+      item.className = 'evo-branch-item';
+      const arrow = document.createElement('div');
+      arrow.className = 'evo-arrow';
+      arrow.innerHTML = `<span>→</span><span>${child.trigger}</span>`;
+      item.appendChild(arrow);
+      item.appendChild(renderEvoNode(child, currentName));
+      branches.appendChild(item);
+    });
+    row.appendChild(branches);
+  }
+
+  return row;
 }
 
 async function renderMoves(data) {

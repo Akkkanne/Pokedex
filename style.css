@@ -555,13 +555,38 @@ button:focus-visible, input:focus-visible {
 .type-group--is-veryresist .type-chip { opacity: 0.8; }
 .type-group--is-immune .type-chip { opacity: 0.9; filter: grayscale(0.15); }
 
-/* evolution */
-.evo-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: center; }
-.evo-node { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; border-radius: 10px; }
+/* evolution : rendu en arbre (gère les embranchements comme Évoli ou Tarsal) */
+.evo-chain {
+  display: flex;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.evo-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.evo-branches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.evo-branches.has-multiple {
+  border-left: 1px dashed #00000018;
+  padding-left: 10px;
+  margin-left: 2px;
+}
+.evo-branch-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.evo-node { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; border-radius: 10px; flex-shrink: 0; }
 .evo-node.is-current { background: #00000010; }
-.evo-node img { width: 64px; height: 64px; image-rendering: pixelated; cursor: pointer; }
-.evo-node__name { font-size: 12px; text-transform: capitalize; font-weight: 600; }
-.evo-arrow { display:flex; flex-direction:column; align-items:center; font-family: var(--font-mono); font-size: 10px; color:#00000066; padding: 0 4px; }
+.evo-node img { width: 56px; height: 56px; image-rendering: pixelated; cursor: pointer; }
+.evo-node__name { font-size: 11px; text-transform: capitalize; font-weight: 600; white-space: nowrap; }
+.evo-arrow { display:flex; flex-direction:column; align-items:center; font-family: var(--font-mono); font-size: 10px; color:#00000066; flex-shrink: 0; }
 
 /* moves */
 .hint { font-size: 12px; color: #00000066; margin: 0 0 10px; }
