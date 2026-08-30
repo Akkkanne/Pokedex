@@ -238,6 +238,17 @@ button:focus-visible, input:focus-visible {
 .compare-row span.is-winner { color: #6fcf57; font-weight: 700; }
 .compare-row--total { border-top: 1px dashed #ffffff22; margin-top: 4px; padding-top: 10px; font-weight: 700; }
 
+.compare-weak { margin-top: 16px; border-top: 1px dashed #ffffff22; padding-top: 14px; }
+.compare-weak__title {
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: #ffffff66; margin-bottom: 10px; text-align: center;
+}
+.compare-weak__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.compare-weak__col { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; align-content: flex-start; }
+.compare-weak__col .type-chip { font-size: 10px; padding: 4px 9px; color: #fff; }
+.compare-weak__col .type-chip b { margin-left: 3px; font-family: var(--font-mono); }
+.compare-weak__col .type-chip.is-danger { box-shadow: 0 0 0 2px #e0483e; }
+
 /* ---------- team panel ---------- */
 .team-panel {
   background: var(--shell-2);
@@ -441,6 +452,16 @@ button:focus-visible, input:focus-visible {
   color: #00000088;
 }
 .screen__nav button:hover { background: #00000020; }
+
+.cry-btn {
+  position: absolute; top: 4px; right: 4px;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #00000010; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .12s ease, transform .12s ease;
+}
+.cry-btn:hover { background: #00000020; transform: scale(1.06); }
+.cry-btn:active { transform: scale(0.95); }
 
 .screen__name {
   text-align: center;

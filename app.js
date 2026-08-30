@@ -146,6 +146,7 @@ function bindEvents() {
   $('prevPk').addEventListener('click', () => stepSelection(-1));
   $('nextPk').addEventListener('click', () => stepSelection(1));
   $('teamStar').addEventListener('click', () => toggleTeamMember(currentData.name));
+  $('cryBtn').addEventListener('click', playCry);
   teamToggle.addEventListener('click', () => {
     teamOnlyMode = !teamOnlyMode;
     teamToggle.setAttribute('aria-pressed', String(teamOnlyMode));
@@ -463,7 +464,7 @@ function resetCompareSlot(slotKey) {
   renderCompareTable();
 }
 
-function renderCompareTable() {
+async function renderCompareTable() {
   const tableEl = $('compareTable');
   const a = compareSlots.A, b = compareSlots.B;
 
@@ -501,7 +502,43 @@ function renderCompareTable() {
       <span class="${aTotal > bTotal ? 'is-winner' : ''}">${aTotal}</span>
       <span class="compare-row__label">Total</span>
       <span class="${bTotal > aTotal ? 'is-winner' : ''}">${bTotal}</span>
+    </div>
+    <div class="compare-weak" id="compareWeak"><p class="hint">Calcul des faiblesses…</p></div>`;
+
+  // toujours reconfirmer qu'on compare encore les mêmes deux Pokémon une fois la promesse résolue
+  const [relA, relB] = await Promise.all([
+    Promise.all(a.types.map(t => getTypeDamageRelations(t))),
+    Promise.all(b.types.map(t => getTypeDamageRelations(t)))
+  ]);
+  if (compareSlots.A !== a || compareSlots.B !== b) return;
+
+  const weakA = weaknessesFrom(relA);
+  const weakB = weaknessesFrom(relB);
+  const sharedTypes = new Set(weakA.filter(w => weakB.some(x => x.type === w.type)).map(w => w.type));
+
+  const weakChip = (w, shared) => `
+    <span class="type-chip ${shared ? 'is-danger' : ''}" style="background:${TYPE_COLORS[w.type]}">
+      ${typeNameFr(w.type)} <b>×${w.mult}</b>
+    </span>`;
+
+  $('compareWeak').innerHTML = `
+    <div class="compare-weak__title">Faiblesses (×2 ou plus) ${sharedTypes.size ? '— types en commun entourés en rouge' : ''}</div>
+    <div class="compare-weak__cols">
+      <div class="compare-weak__col">${weakA.length ? weakA.map(w => weakChip(w, sharedTypes.has(w.type))).join('') : '<span class="hint">Aucune</span>'}</div>
+      <div class="compare-weak__col">${weakB.length ? weakB.map(w => weakChip(w, sharedTypes.has(w.type))).join('') : '<span class="hint">Aucune</span>'}</div>
     </div>`;
+}
+
+function weaknessesFrom(relList) {
+  return ALL_TYPES.map(atk => {
+    let mult = 1;
+    relList.forEach(rel => {
+      if (rel.zero.includes(atk)) mult *= 0;
+      else if (rel.double.includes(atk)) mult *= 2;
+      else if (rel.half.includes(atk)) mult *= 0.5;
+    });
+    return { type: atk, mult };
+  }).filter(r => r.mult >= 2).sort((x, y) => y.mult - x.mult);
 }
 
 /* ---------- selection / navigation ---------- */
@@ -549,6 +586,7 @@ async function fetchPokemon(name) {
     id: pk.id,
     name: pk.name,
     speciesId: sp.id,
+    cryUrl: pk.cries ? pk.cries.latest : null,
     types: pk.types.map(t => t.type.name),
     stats: pk.stats.map(s => ({ key: s.stat.name, base: s.base_stat })),
     height: pk.height,
@@ -588,6 +626,7 @@ function renderDetail(data) {
   $('teamStar').setAttribute('aria-pressed', String(team.has(data.name)));
 
   renderSprite();
+  $('cryBtn').hidden = !data.cryUrl;
 
   $('pkTypes').innerHTML = data.types.map(t =>
     `<span class="type-badge" style="background:${TYPE_COLORS[t] || '#888'}">${typeNameFr(t)}</span>`
@@ -616,6 +655,15 @@ function renderSprite() {
   };
   img.src = path;
   img.alt = `${displayName(currentData)}${showShiny ? ' (chromatique)' : ''}`;
+}
+
+let cryAudio = null;
+function playCry() {
+  if (!currentData || !currentData.cryUrl) return;
+  if (cryAudio) { cryAudio.pause(); cryAudio.currentTime = 0; }
+  cryAudio = new Audio(currentData.cryUrl);
+  cryAudio.volume = 0.6;
+  cryAudio.play().catch(() => {}); // ignore si le navigateur bloque la lecture auto
 }
 
 function toggleShiny() {
