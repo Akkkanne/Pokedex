@@ -44,6 +44,7 @@ let TYPE_FR = {};      // slug -> nom français
 let MOVE_FR = {};      // slug -> nom français
 let ABILITY_FR = {};   // slug -> nom français
 let ITEM_FR = {};      // slug -> nom français (pierres d'évolution, objets tenus…)
+let ABILITY_DESC_FR = {}; // slug -> description détaillée en français (pas juste la ligne "flavor" du jeu)
 let FORMS_FR = {};     // slug de forme (ex. "charizard-mega-x") -> { speciesId, name, isMega }
 const detailCache = new Map();
 const moveCache = new Map();
@@ -78,15 +79,16 @@ async function init() {
 /* ---------- traductions françaises (fichiers statiques, chargés une seule fois) ---------- */
 async function loadTranslations() {
   try {
-    const [pk, ty, mv, ab, fo, it] = await Promise.all([
+    const [pk, ty, mv, ab, fo, it, abd] = await Promise.all([
       fetch('pokemon-fr.json').then(r => r.json()),
       fetch('type-fr.json').then(r => r.json()),
       fetch('move-fr.json').then(r => r.json()),
       fetch('ability-fr.json').then(r => r.json()),
       fetch('forms-fr.json').then(r => r.json()),
-      fetch('item-fr.json').then(r => r.json())
+      fetch('item-fr.json').then(r => r.json()),
+      fetch('ability-desc-fr.json').then(r => r.json())
     ]);
-    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab; FORMS_FR = fo; ITEM_FR = it;
+    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab; FORMS_FR = fo; ITEM_FR = it; ABILITY_DESC_FR = abd;
   } catch {
     // pas grave : l'app retombe sur les noms anglais si les fichiers sont indisponibles
   }
@@ -689,6 +691,10 @@ function renderStats(data) {
 }
 
 async function getAbilityDetails(slug) {
+  // description détaillée en français, tirée des données officielles du jeu (bien plus complète que le "flavor text")
+  if (ABILITY_DESC_FR[slug]) return { description: ABILITY_DESC_FR[slug] };
+
+  // repli si le talent n'a pas de description FR dans notre base (rare, talents très récents)
   const cacheKey = `pkdx_ability_${slug}`;
   const cached = store.get(cacheKey);
   if (cached) return cached;
@@ -696,10 +702,7 @@ async function getAbilityDetails(slug) {
   const data = await res.json();
   const flavor = (data.flavor_text_entries || []).find(f => f.language.name === 'fr')
               || (data.flavor_text_entries || []).find(f => f.language.name === 'en');
-  const effect = (data.effect_entries || []).find(e => e.language.name === 'en');
-  const description = flavor
-    ? flavor.flavor_text.replace(/[\n\f\u000c]/g, ' ')
-    : (effect ? effect.short_effect : 'Pas de description disponible.');
+  const description = flavor ? flavor.flavor_text.replace(/[\n\f\u000c]/g, ' ') : 'Pas de description disponible.';
   const result = { description };
   store.set(cacheKey, result);
   return result;
