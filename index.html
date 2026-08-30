@@ -38,6 +38,9 @@
       <button id="teamToggle" class="filter-chip filter-chip--team" aria-pressed="false">
         ★ Équipe <span id="teamCount">0/6</span>
       </button>
+      <button id="compareToggle" class="filter-chip filter-chip--compare" aria-pressed="false">
+        ⚖ Comparer
+      </button>
       <div class="filters" id="typeFilters"></div>
     </div>
   </div>
@@ -45,6 +48,27 @@
   <div class="team-panel" id="teamPanel" hidden>
     <div class="team-panel__members" id="teamMembers"></div>
     <div class="team-panel__weak" id="teamWeak"></div>
+  </div>
+
+  <div class="compare-panel" id="comparePanel" hidden>
+    <div class="compare-panel__slots">
+      <div class="compare-slot" id="compareSlotA">
+        <div class="compare-slot__search">
+          <input type="text" id="compareSearchA" placeholder="Choisir un Pokémon ou une forme…" autocomplete="off">
+          <div class="compare-slot__results" id="compareResultsA"></div>
+        </div>
+        <div class="compare-slot__picked" id="comparePickedA" hidden></div>
+      </div>
+      <div class="compare-vs">VS</div>
+      <div class="compare-slot" id="compareSlotB">
+        <div class="compare-slot__search">
+          <input type="text" id="compareSearchB" placeholder="Choisir un Pokémon ou une forme…" autocomplete="off">
+          <div class="compare-slot__results" id="compareResultsB"></div>
+        </div>
+        <div class="compare-slot__picked" id="comparePickedB" hidden></div>
+      </div>
+    </div>
+    <div class="compare-table" id="compareTable"></div>
   </div>
 
   <main class="layout">

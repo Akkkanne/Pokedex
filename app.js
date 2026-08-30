@@ -37,6 +37,8 @@ let showShiny = false;
 let activeTypeFilters = new Set();
 let team = new Set(store.get('pkdx_team_v1') || []);
 let teamOnlyMode = false;
+let compareOnlyMode = false;
+const compareSlots = { A: null, B: null }; // données complètes (fetchPokemon) de chaque côté
 let POKEMON_FR = {};   // id -> nom français
 let TYPE_FR = {};      // slug -> nom français
 let MOVE_FR = {};      // slug -> nom français
@@ -57,6 +59,8 @@ const screenContent = $('screenContent');
 const cacheStatus = $('cacheStatus');
 const teamPanel = $('teamPanel');
 const teamToggle = $('teamToggle');
+const comparePanel = $('comparePanel');
+const compareToggle = $('compareToggle');
 
 /* ---------- init ---------- */
 init();
@@ -143,6 +147,14 @@ function bindEvents() {
     if (teamOnlyMode) renderTeamPanel();
     applyFilters();
   });
+  compareToggle.addEventListener('click', () => {
+    compareOnlyMode = !compareOnlyMode;
+    compareToggle.setAttribute('aria-pressed', String(compareOnlyMode));
+    compareToggle.classList.toggle('is-active', compareOnlyMode);
+    comparePanel.hidden = !compareOnlyMode;
+  });
+  $('compareSearchA').addEventListener('input', debounce(() => renderCompareResults('A'), 120));
+  $('compareSearchB').addEventListener('input', debounce(() => renderCompareResults('B'), 120));
   $('tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.tab');
     if (!btn) return;
@@ -185,6 +197,7 @@ function setCacheStatus(msg) {
 function applyFilters() {
   const q = normalizeSearch(searchInput.value.trim());
   let list = allNames;
+  let formMatches = [];
 
   if (q) {
     list = list.filter(p => {
@@ -194,6 +207,11 @@ function applyFilters() {
         || String(p.id) === q
         || String(p.id).padStart(3, '0') === q;
     });
+
+    // la recherche inclut aussi les formes (Méga, Gigamax, régionales…), sauf si un autre filtre est actif
+    if (!teamOnlyMode && activeTypeFilters.size === 0) {
+      formMatches = getMatchingForms(q);
+    }
   }
 
   if (teamOnlyMode) {
@@ -213,10 +231,21 @@ function applyFilters() {
     return;
   }
 
-  filteredNames = list;
+  filteredNames = [...list, ...formMatches];
   renderedCount = 0;
   listGrid.innerHTML = '';
   renderList(false);
+}
+
+/* cherche parmi les formes alternatives (clé JSON = slug ; valeur = {id, speciesId, name, isMega}) */
+function getMatchingForms(q, limit = Infinity) {
+  return Object.keys(FORMS_FR)
+    .filter(slug => normalizeSearch(slug).includes(q) || normalizeSearch(FORMS_FR[slug].name).includes(q))
+    .slice(0, limit)
+    .map(slug => {
+      const f = FORMS_FR[slug];
+      return { name: slug, id: f.id, dexId: f.speciesId, label: f.name, isForm: true };
+    });
 }
 
 async function filterByTypes(types, baseList) {
@@ -257,14 +286,15 @@ function maybeAutoLoadMore() {
 
 function buildCard(p) {
   const card = document.createElement('button');
-  card.className = 'pk-card';
+  card.className = 'pk-card' + (p.isForm ? ' pk-card--form' : '');
   card.dataset.name = p.name;
-  const spriteId = p.id <= 1025 ? p.id : 1;
+  const dexId = p.dexId || p.id;
+  const label = p.label || pkNameFr(p.id, p.name);
   card.innerHTML = `
-    <img class="pk-card__img" loading="lazy" src="${SPRITE_BASE}/${spriteId}.png" alt="">
+    <img class="pk-card__img" loading="lazy" src="${SPRITE_BASE}/${p.id}.png" alt="">
     <span>
-      <span class="pk-card__id">#${String(p.id).padStart(3, '0')}</span>
-      <span class="pk-card__name">${pkNameFr(p.id, p.name)}</span>
+      <span class="pk-card__id">#${String(dexId).padStart(3, '0')}${p.isForm ? ' <em>forme</em>' : ''}</span>
+      <span class="pk-card__name">${label}</span>
     </span>
     <span class="pk-card__star ${team.has(p.name) ? 'is-active' : ''}" data-star="${p.name}">★</span>`;
   card.addEventListener('click', (e) => {
@@ -357,6 +387,114 @@ async function renderTeamPanel() {
           ${typeNameFr(c.type)} <b>${c.weakCount}/${dataList.length}</b>
         </span>`).join('')}
     </div>` : '<p class="hint">Aucune faiblesse commune détectée pour l\'instant.</p>';
+}
+
+/* ---------- comparateur (accepte aussi bien les Pokémon de base que leurs formes) ---------- */
+function renderCompareResults(slotKey) {
+  const input = $(`compareSearch${slotKey}`);
+  const resultsEl = $(`compareResults${slotKey}`);
+  const q = normalizeSearch(input.value.trim());
+
+  if (!q) { resultsEl.innerHTML = ''; resultsEl.hidden = true; return; }
+
+  const baseMatches = allNames
+    .filter(p => {
+      const frName = POKEMON_FR[String(p.id)];
+      return p.name.includes(q) || (frName && normalizeSearch(frName).includes(q)) || String(p.id) === q;
+    })
+    .slice(0, 6)
+    .map(p => ({ name: p.name, id: p.id, dexId: p.id, label: pkNameFr(p.id, p.name), isForm: false }));
+
+  const formMatches = getMatchingForms(q, 6);
+  const combined = [...baseMatches, ...formMatches].slice(0, 8);
+
+  if (!combined.length) {
+    resultsEl.innerHTML = '<p class="hint">Aucun résultat.</p>';
+    resultsEl.hidden = false;
+    return;
+  }
+
+  resultsEl.innerHTML = combined.map(p => `
+    <button class="compare-result" data-slug="${p.name}">
+      <img src="${SPRITE_BASE}/${p.id}.png" alt="" loading="lazy">
+      <span>${p.label}${p.isForm ? ' <em>forme</em>' : ''}</span>
+    </button>`).join('');
+  resultsEl.hidden = false;
+  resultsEl.querySelectorAll('.compare-result').forEach(btn =>
+    btn.addEventListener('click', () => pickCompareSlot(slotKey, btn.dataset.slug))
+  );
+}
+
+async function pickCompareSlot(slotKey, slug) {
+  const data = await fetchPokemon(slug);
+  compareSlots[slotKey] = data;
+
+  const searchWrap = document.querySelector(`#compareSlot${slotKey} .compare-slot__search`);
+  const pickedEl = $(`comparePicked${slotKey}`);
+  searchWrap.hidden = true;
+  pickedEl.hidden = false;
+  pickedEl.innerHTML = `
+    <img src="${SPRITE_BASE}/${data.id}.png" alt="${displayName(data)}">
+    <span class="compare-slot__name">${displayName(data)}</span>
+    <span class="type-badges">${data.types.map(t => `<span class="type-badge" style="background:${TYPE_COLORS[t] || '#888'}">${typeNameFr(t)}</span>`).join('')}</span>
+    <button class="compare-slot__reset" data-slot="${slotKey}">Changer</button>`;
+  pickedEl.querySelector('.compare-slot__reset').addEventListener('click', () => resetCompareSlot(slotKey));
+
+  renderCompareTable();
+}
+
+function resetCompareSlot(slotKey) {
+  compareSlots[slotKey] = null;
+  const searchWrap = document.querySelector(`#compareSlot${slotKey} .compare-slot__search`);
+  const pickedEl = $(`comparePicked${slotKey}`);
+  const input = $(`compareSearch${slotKey}`);
+  searchWrap.hidden = false;
+  pickedEl.hidden = true;
+  pickedEl.innerHTML = '';
+  input.value = '';
+  $(`compareResults${slotKey}`).innerHTML = '';
+  renderCompareTable();
+}
+
+function renderCompareTable() {
+  const tableEl = $('compareTable');
+  const a = compareSlots.A, b = compareSlots.B;
+
+  if (!a || !b) {
+    tableEl.innerHTML = '<p class="hint">Choisis un Pokémon (ou une forme) dans chaque colonne pour lancer la comparaison.</p>';
+    return;
+  }
+
+  const rows = a.stats.map((s, i) => {
+    const bVal = b.stats[i].base;
+    return {
+      label: STAT_LABELS[s.key] || s.key,
+      aVal: s.base,
+      bVal,
+      aWins: s.base > bVal,
+      bWins: bVal > s.base
+    };
+  });
+  const aTotal = a.stats.reduce((s, x) => s + x.base, 0);
+  const bTotal = b.stats.reduce((s, x) => s + x.base, 0);
+
+  tableEl.innerHTML = `
+    <div class="compare-row compare-row--head">
+      <span class="${aTotal > bTotal ? 'is-winner' : ''}">${displayName(a)}</span>
+      <span></span>
+      <span class="${bTotal > aTotal ? 'is-winner' : ''}">${displayName(b)}</span>
+    </div>
+    ${rows.map(r => `
+      <div class="compare-row">
+        <span class="${r.aWins ? 'is-winner' : ''}">${r.aVal}</span>
+        <span class="compare-row__label">${r.label}</span>
+        <span class="${r.bWins ? 'is-winner' : ''}">${r.bVal}</span>
+      </div>`).join('')}
+    <div class="compare-row compare-row--total">
+      <span class="${aTotal > bTotal ? 'is-winner' : ''}">${aTotal}</span>
+      <span class="compare-row__label">Total</span>
+      <span class="${bTotal > aTotal ? 'is-winner' : ''}">${bTotal}</span>
+    </div>`;
 }
 
 /* ---------- selection / navigation ---------- */
