@@ -43,6 +43,7 @@ let POKEMON_FR = {};   // id -> nom français
 let TYPE_FR = {};      // slug -> nom français
 let MOVE_FR = {};      // slug -> nom français
 let ABILITY_FR = {};   // slug -> nom français
+let ITEM_FR = {};      // slug -> nom français (pierres d'évolution, objets tenus…)
 let FORMS_FR = {};     // slug de forme (ex. "charizard-mega-x") -> { speciesId, name, isMega }
 const detailCache = new Map();
 const moveCache = new Map();
@@ -77,14 +78,15 @@ async function init() {
 /* ---------- traductions françaises (fichiers statiques, chargés une seule fois) ---------- */
 async function loadTranslations() {
   try {
-    const [pk, ty, mv, ab, fo] = await Promise.all([
+    const [pk, ty, mv, ab, fo, it] = await Promise.all([
       fetch('pokemon-fr.json').then(r => r.json()),
       fetch('type-fr.json').then(r => r.json()),
       fetch('move-fr.json').then(r => r.json()),
       fetch('ability-fr.json').then(r => r.json()),
-      fetch('forms-fr.json').then(r => r.json())
+      fetch('forms-fr.json').then(r => r.json()),
+      fetch('item-fr.json').then(r => r.json())
     ]);
-    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab; FORMS_FR = fo;
+    POKEMON_FR = pk; TYPE_FR = ty; MOVE_FR = mv; ABILITY_FR = ab; FORMS_FR = fo; ITEM_FR = it;
   } catch {
     // pas grave : l'app retombe sur les noms anglais si les fichiers sont indisponibles
   }
@@ -106,6 +108,9 @@ function moveNameFr(slug) {
 }
 function abilityNameFr(slug) {
   return ABILITY_FR[slug] || slug.replace(/-/g, ' ');
+}
+function itemNameFr(slug) {
+  return ITEM_FR[slug] || slug.replace(/-/g, ' ');
 }
 
 /* accent-insensitive, pour que la recherche marche pareil en FR et EN */
@@ -291,7 +296,7 @@ function buildCard(p) {
   const dexId = p.dexId || p.id;
   const label = p.label || pkNameFr(p.id, p.name);
   card.innerHTML = `
-    <img class="pk-card__img" loading="lazy" src="${SPRITE_BASE}/${p.id}.png" alt="">
+    <img class="pk-card__img" loading="lazy" src="${SPRITE_BASE}/${p.id}.png" alt="" onerror="this.onerror=null;this.src='icon-192.png';this.classList.add('is-fallback')">
     <span>
       <span class="pk-card__id">#${String(dexId).padStart(3, '0')}${p.isForm ? ' <em>forme</em>' : ''}</span>
       <span class="pk-card__name">${label}</span>
@@ -351,7 +356,7 @@ async function renderTeamPanel() {
 
   membersEl.innerHTML = dataList.map(d => `
     <div class="team-member">
-      <img src="${SPRITE_BASE}/${d.id}.png" alt="${d.name}" loading="lazy">
+      <img src="${SPRITE_BASE}/${d.id}.png" alt="${d.name}" loading="lazy" onerror="this.onerror=null;this.src='icon-192.png';this.classList.add('is-fallback')">
       <span class="team-member__name">${pkNameFr(d.id, d.name)}</span>
       <button class="team-member__remove" data-star="${d.name}" title="Retirer">✕</button>
     </div>`).join('');
@@ -416,7 +421,7 @@ function renderCompareResults(slotKey) {
 
   resultsEl.innerHTML = combined.map(p => `
     <button class="compare-result" data-slug="${p.name}">
-      <img src="${SPRITE_BASE}/${p.id}.png" alt="" loading="lazy">
+      <img src="${SPRITE_BASE}/${p.id}.png" alt="" loading="lazy" onerror="this.onerror=null;this.src='icon-192.png';this.classList.add('is-fallback')">
       <span>${p.label}${p.isForm ? ' <em>forme</em>' : ''}</span>
     </button>`).join('');
   resultsEl.hidden = false;
@@ -434,7 +439,7 @@ async function pickCompareSlot(slotKey, slug) {
   searchWrap.hidden = true;
   pickedEl.hidden = false;
   pickedEl.innerHTML = `
-    <img src="${SPRITE_BASE}/${data.id}.png" alt="${displayName(data)}">
+    <img src="${SPRITE_BASE}/${data.id}.png" alt="${displayName(data)}" onerror="this.onerror=null;this.src='icon-192.png';this.classList.add('is-fallback')">
     <span class="compare-slot__name">${displayName(data)}</span>
     <span class="type-badges">${data.types.map(t => `<span class="type-badge" style="background:${TYPE_COLORS[t] || '#888'}">${typeNameFr(t)}</span>`).join('')}</span>
     <button class="compare-slot__reset" data-slot="${slotKey}">Changer</button>`;
@@ -600,6 +605,13 @@ function renderSprite() {
   const variant = showShiny ? 'shiny' : '';
   const path = variant ? `${SPRITE_BASE}/shiny/${spriteId}.png` : `${SPRITE_BASE}/${spriteId}.png`;
   const img = $('pkSprite');
+  img.classList.remove('is-fallback');
+  img.onerror = () => {
+    img.onerror = null;
+    // repli : si le shiny n'existe pas, on retombe sur le sprite normal ; sinon sur l'icône générique
+    if (variant) { img.src = `${SPRITE_BASE}/${spriteId}.png`; }
+    else { img.src = 'icon-192.png'; img.classList.add('is-fallback'); }
+  };
   img.src = path;
   img.alt = `${displayName(currentData)}${showShiny ? ' (chromatique)' : ''}`;
 }
@@ -665,6 +677,11 @@ function renderStats(data) {
       el.style.width = el.dataset.width + '%';
     });
   });
+
+  $('statsAbilities').innerHTML = data.abilities.map(a => `
+    <span class="ability-chip ${a.hidden ? 'is-hidden' : ''}">
+      ${abilityNameFr(a.name)}${a.hidden ? ' <em>(cachée)</em>' : ''}
+    </span>`).join('');
 }
 
 /* stat value -> couleur : rouge (mauvais) -> vert (bon) -> bleu (excellent) */
@@ -805,7 +822,7 @@ function buildEvoTree(node, trigger) {
       let label = '';
       if (details) {
         if (details.min_level) label = `Nv. ${details.min_level}`;
-        else if (details.item) label = details.item.name.replace(/-/g, ' ');
+        else if (details.item) label = itemNameFr(details.item.name);
         else if (details.trigger && details.trigger.name === 'trade') label = 'Échange';
         else if (details.min_happiness) label = 'Bonheur';
         else label = details.trigger ? details.trigger.name.replace(/-/g, ' ') : '';
@@ -823,7 +840,7 @@ function renderEvoNode(node, currentName) {
   const chip = document.createElement('div');
   chip.className = 'evo-node' + (node.name === currentName ? ' is-current' : '');
   chip.innerHTML = `
-    <img src="${SPRITE_BASE}/${node.id}.png" alt="${node.name}" loading="lazy">
+    <img src="${SPRITE_BASE}/${node.id}.png" alt="${node.name}" loading="lazy" onerror="this.onerror=null;this.src='icon-192.png';this.classList.add('is-fallback')">
     <span class="evo-node__name">${pkNameFr(node.id, node.name)}</span>`;
   chip.addEventListener('click', () => selectPokemon(node.name));
   row.appendChild(chip);

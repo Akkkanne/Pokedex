@@ -327,6 +327,7 @@ button:focus-visible, input:focus-visible {
 .pk-card.is-selected .pk-card__id { color: #12131a; }
 
 .pk-card__img { width: 40px; height: 40px; image-rendering: pixelated; flex-shrink: 0; }
+.pk-card__img.is-fallback { opacity: 0.35; }
 .pk-card__id { font-family: var(--font-mono); font-size: 11px; color: #ffffff66; display:block; }
 .pk-card__id em { font-style: normal; color: #f6c453; margin-left: 4px; }
 .pk-card__name { font-size: 13px; font-weight: 600; text-transform: capitalize; color: var(--cream); }
@@ -430,6 +431,7 @@ button:focus-visible, input:focus-visible {
   padding: 6px 0 4px;
 }
 #pkSprite { width: 160px; height: 160px; image-rendering: pixelated; filter: drop-shadow(0 8px 14px #00000022); }
+#pkSprite.is-fallback { width: 80px; height: 80px; opacity: 0.3; filter: none; }
 .screen__nav { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; }
 .screen__nav button {
   width: 32px; height: 32px;
@@ -517,6 +519,20 @@ button:focus-visible, input:focus-visible {
 .stat-row__fill { display: block; height: 100%; border-radius: 100px; transition: width .5s cubic-bezier(.2,.8,.2,1); }
 .stat-row__val { font-family: var(--font-mono); font-size: 12px; text-align: right; }
 .stats-total { margin-top: 6px; font-family: var(--font-mono); font-size: 12px; color: #00000066; display:flex; justify-content: space-between; border-top: 1px dashed #00000020; padding-top: 10px; }
+
+/* talents affichés directement sous les stats */
+.stats-abilities {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px dashed #00000020;
+}
+.ability-chip {
+  font-size: 12px; text-transform: capitalize;
+  padding: 6px 12px; border-radius: 100px;
+  background: #00000010; color: var(--ink);
+}
+.ability-chip.is-hidden { background: var(--type-color, var(--accent)); color: #fff; }
+.ability-chip em { font-style: normal; opacity: 0.85; }
 
 /* type chart (faiblesses / résistances), groupé par palier */
 .type-chart { margin-top: 20px; }
@@ -658,3 +674,6 @@ button:focus-visible, input:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* icône de repli générique quand un sprite n'existe pas (formes très rares/battle-only) */
+img.is-fallback { opacity: 0.3; filter: grayscale(0.4); }
